@@ -2,8 +2,8 @@
 provider "aws" {
   version = "~> 2.0"
   region  = "us-east-1"
-  access_key = "AKIA6N4RZV6SM3CMCOHP"
-  secret_key = "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"
+  access_key = "" ####### j'ai retirer vos access key
+  secret_key = ""
 }
 
 data "aws_ami" "ubuntu" {
