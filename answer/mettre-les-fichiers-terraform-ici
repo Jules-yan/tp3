@@ -1,0 +1,96 @@
+# Configure the AWS Provider
+provider "aws" {
+  version = "~> 2.0"
+  region  = "us-east-1"
+  access_key = "AKIA6N4RZV6SM3CMCOHP"
+  secret_key = "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"
+}
+
+data "aws_ami" "ubuntu" {
+  most_recent = true
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  owners = ["099720109477"] # Canonical
+} 
+
+resource "aws_instance" "web_julesyan" {
+  ami           = "${data.aws_ami.ubuntu.id}"
+  instance_type = "t2.micro"
+  key_name   = "descamps-key"
+
+ 
+  
+  provisioner "remote-exec" {
+    inline = [
+	"sudo apt install maven",
+	"sudo apt install git",
+	"sudo apt install default-jdk"
+	]
+
+  }
+	connection{
+		type="ssh"
+		host="${self.public_ip}"
+		user="ubuntu"
+		private_key="${file("cleprive.pem")}"
+}
+
+}
+
+resource "aws_key_pair" "deployer" {
+  key_name   = "descamps-key"
+  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAQEAz9ErpWgNvIAfimgxuzOtHLF+6XWD/vomnBWJu8W7ttLZOH+pKhXiAC62OlZoE3dS6hhFi7vRgsNS3+CPH1/Kjs6c+UBqxklDTFnM4C01HmNR1BcYMK3hIpf1gj+IpjofuR+rS9Mwb4rWpqV2qF9+qMd4fnQrnefzIzSgbi0O/i30K9kSIOETuo7FTHrxfhRfDhoRVMT1DyUMO9H6N/y/jWg0CwyKir6Irm7cB2AxAbXQET7GYsU7IqJCim7bx1Vxs5wO9DHevX/r1XtvPLHXRg2DqQMRvPfcz0KOISB+FuHClAaugiYvDo2sEOIC+/XC3kFGxC04bpix/EsNfPjKlw== rsa-key-20190930"
+}
+
+resource "aws_vpc" "lgu_vpc"{
+	cidr_block="172.16.0.0/16"
+	enable_dns_hostnames= true
+	enable_dns_support = true
+	
+	tags = {
+		Name = "lgu_vpc"
+	}
+	
+}
+
+resource "aws_subnet" "lgu_sn"{
+	cidr_block = "${cidrsubnet(aws_vpc.lgu_vpc.cidr_block,3,1)}"
+	vpc_id = "${aws_vpc.lgu_vpc.id}"
+	availability_zone = "eu_west_1a"
+	map_public_ip_on_launch = true
+	
+	tags = {
+		Name = "lgu_sn"
+	}
+}
+
+resource "aws_internet_gateway" "lgu_igw"{
+	vpc_id = "${aws_vpc.lgu_vpc.id}"
+}
+
+resource "aws_route_table" "lgu_rt"{
+	vpc_id = "${aws_vpc.lgu_vpc.id}"
+	
+	route{
+		cidr_block = "0.0.0.0/0"
+		gateway_id = "${aws_internet_gateway.lgu_igw.id}"
+	}
+	
+	tags =  {
+		Name = "lgu_rt"
+	}
+}
+
+resource "aws_route_table_association" "lgu_rta" {
+	subnet_id = "${aws_subnet.lgu_sn.id}"
+	route_table_id = "${aws_route_table.lgu_rt.id}"
+}
